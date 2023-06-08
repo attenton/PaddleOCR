@@ -11,8 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 import sys
+
+import tqdm
 from PIL import Image
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
@@ -386,6 +389,7 @@ class TextRecognizer(object):
         img_num = len(img_list)
         # Calculate the aspect ratio of all text bars
         width_list = []
+        
         for img in img_list:
             width_list.append(img.shape[1] / float(img.shape[0]))
         # Sorting can speed up the recognition process
@@ -481,6 +485,7 @@ class TextRecognizer(object):
             norm_img_batch = norm_img_batch.copy()
             if self.benchmark:
                 self.autolog.times.stamp()
+            pre_proc_end = time.time()
 
             if self.rec_algorithm == "SRN":
                 encoder_word_pos_list = np.concatenate(encoder_word_pos_list)
@@ -616,12 +621,14 @@ class TextRecognizer(object):
                         preds = outputs
                     else:
                         preds = outputs[0]
+            rec_end_time = time.time()
             rec_result = self.postprocess_op(preds)
             for rno in range(len(rec_result)):
                 rec_res[indices[beg_img_no + rno]] = rec_result[rno]
             if self.benchmark:
                 self.autolog.times.end(stamp=True)
-        return rec_res, time.time() - st
+            end_time = time.time()
+        return rec_res, pre_proc_end - st, rec_end_time - pre_proc_end, end_time - rec_end_time, end_time  - st
 
 
 def main(args):
@@ -639,8 +646,13 @@ def main(args):
         img = np.random.uniform(0, 255, [48, 320, 3]).astype(np.uint8)
         for i in range(2):
             res = text_recognizer([img] * int(args.rec_batch_num))
-
-    for image_file in image_file_list:
+    st = time.time()
+    read_time = 0
+    infer_p1 = 0
+    infer_p2 = 0
+    infer_p3 = 0
+    save_res_time = 0
+    for image_file in tqdm.tqdm(image_file_list):
         img, flag, _ = check_and_read(image_file)
         if not flag:
             img = cv2.imread(image_file)
@@ -649,16 +661,33 @@ def main(args):
             continue
         valid_image_file_list.append(image_file)
         img_list.append(img)
-    try:
-        rec_res, _ = text_recognizer(img_list)
+    first_point = time.time()
+    read_time = first_point - st
 
+    try:
+        rec_res, infer_p1, infer_p2, infer_p3, _ = text_recognizer(img_list)
+    
+    
     except Exception as E:
         logger.info(traceback.format_exc())
         logger.info(E)
         exit()
-    for ino in range(len(img_list)):
-        logger.info("Predicts of {}:{}".format(valid_image_file_list[ino],
-                                               rec_res[ino]))
+    #for ino in range(len(img_list)):
+    #    logger.info("Predicts of {}:{}".format(valid_image_file_list[ino],
+    #                                           rec_res[ino]))
+    rec_proc_end_time = time.time()
+    with open(os.path.join("inference_results", "rec_results.txt"), 'w') as f:
+        for name, pred in zip(valid_image_file_list, rec_res):
+            content = os.path.basename(name) + "\t" + json.dumps(pred[0], ensure_ascii=False) + "\n"
+            f.write(content)
+    last_time = time.time()
+    save_res_time = last_time - rec_proc_end_time
+    tt_time = last_time - st
+    fps = len(image_file_list) / (rec_proc_end_time - st)
+    print(f"FPS: {fps}, Number: {len(image_file_list)}.")
+    image_num = len(image_file_list)
+    logger.info("read_time = {}, infer_pre_time = {}, infer_det_time = {}, infer_last_proc_time = {}, save_result_time = {}, total_time = {}".format(read_time, infer_p1, infer_p2, infer_p3, save_res_time, tt_time))
+    logger.info("per image cost(ms): read_time: {}, infer_pre_time: {}, infer_det_time: {}, infer_last_proc_time: {}, save_result_time: {}, total_pre_time: {}".format(read_time *1000 / image_num, infer_p1 * 1000 / image_num, infer_p2 * 1000 / image_num, infer_p3 * 1000 / image_num, save_res_time  * 1000 / image_num, tt_time * 1000 / image_num))
     if args.benchmark:
         text_recognizer.autolog.report()
 

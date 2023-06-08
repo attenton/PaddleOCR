@@ -41,8 +41,8 @@ class TextDetector(object):
         self.use_onnx = args.use_onnx
         pre_process_list = [{
             'DetResizeForTest': {
-                'limit_side_len': args.det_limit_side_len,
-                'limit_type': args.det_limit_type,
+                'image_shape': [736,1280],
+                'keep_ratio': True,
             }
         }, {
             'NormalizeImage': {
@@ -234,6 +234,8 @@ class TextDetector(object):
 
         if self.args.benchmark:
             self.autolog.times.stamp()
+
+        infer_start = time.time()
         if self.use_onnx:
             input_dict = {}
             input_dict[self.input_tensor.name] = img
@@ -248,6 +250,8 @@ class TextDetector(object):
             if self.args.benchmark:
                 self.autolog.times.stamp()
 
+        infer_mid = time.time()
+        
         preds = {}
         if self.det_algorithm == "EAST":
             preds['f_geo'] = outputs[0]
@@ -279,7 +283,7 @@ class TextDetector(object):
         if self.args.benchmark:
             self.autolog.times.end(stamp=True)
         et = time.time()
-        return dt_boxes, et - st
+        return dt_boxes, infer_start -st, infer_mid - infer_start, et - infer_mid, et - st
 
 
 if __name__ == "__main__":
@@ -294,9 +298,16 @@ if __name__ == "__main__":
         img = np.random.uniform(0, 255, [640, 640, 3]).astype(np.uint8)
         for i in range(2):
             res = text_detector(img)
-
+    start = time.time()
     save_results = []
+
+    read_time = 0
+    infer_p1 = 0
+    infer_p2 = 0
+    infer_p3 = 0
+    last_proc = 0
     for idx, image_file in enumerate(image_file_list):
+        read_st = time.time()
         img, flag_gif, flag_pdf = check_and_read(image_file)
         if not flag_gif and not flag_pdf:
             img = cv2.imread(image_file)
@@ -310,11 +321,15 @@ if __name__ == "__main__":
             if page_num > len(img) or page_num == 0:
                 page_num = len(img)
             imgs = img[:page_num]
+        read_time += time.time() - read_st    
         for index, img in enumerate(imgs):
-            st = time.time()
-            dt_boxes, _ = text_detector(img)
-            elapse = time.time() - st
-            total_time += elapse
+            #st = time.time()
+            dt_boxes, first_time, second_time, last_time, _ = text_detector(img)
+            infer_p1 += first_time
+            infer_p2 += second_time
+            infer_p3 += last_time
+            #elapse = time.time() - st
+            #total_time += elapse
             if len(imgs) > 1:
                 save_pred = os.path.basename(image_file) + '_' + str(
                     index) + "\t" + str(
@@ -323,31 +338,39 @@ if __name__ == "__main__":
                 save_pred = os.path.basename(image_file) + "\t" + str(
                     json.dumps([x.tolist() for x in dt_boxes])) + "\n"
             save_results.append(save_pred)
-            logger.info(save_pred)
-            if len(imgs) > 1:
-                logger.info("{}_{} The predict time of {}: {}".format(
-                    idx, index, image_file, elapse))
-            else:
-                logger.info("{} The predict time of {}: {}".format(
-                    idx, image_file, elapse))
+            #logger.info(save_pred)
+            #if len(imgs) > 1:
+            #    logger.info("{}_{} The predict time of {}: {}".format(
+            #        idx, index, image_file, elapse))
+            #else:
+            #    logger.info("{} The predict time of {}: {}".format(
+            #        idx, image_file, elapse))
 
-            src_im = utility.draw_text_det_res(dt_boxes, img)
+            #src_im = utility.draw_text_det_res(dt_boxes, img)
 
-            if flag_gif:
-                save_file = image_file[:-3] + "png"
-            elif flag_pdf:
-                save_file = image_file.replace('.pdf',
-                                               '_' + str(index) + '.png')
-            else:
-                save_file = image_file
-            img_path = os.path.join(
-                draw_img_save_dir,
-                "det_res_{}".format(os.path.basename(save_file)))
-            cv2.imwrite(img_path, src_im)
-            logger.info("The visualized image saved in {}".format(img_path))
-
+            #if flag_gif:
+            #    save_file = image_file[:-3] + "png"
+            #elif flag_pdf:
+            #    save_file = image_file.replace('.pdf',
+            #                                   '_' + str(index) + '.png')
+            #else:
+            #    save_file = image_file
+            #img_path = os.path.join(
+            #    draw_img_save_dir,
+            #    "det_res_{}".format(os.path.basename(save_file)))
+            #cv2.imwrite(img_path, src_im)
+            #logger.info("The visualized image saved in {}".format(img_path))
+    last_proc_st = time.time()
     with open(os.path.join(draw_img_save_dir, "det_results.txt"), 'w') as f:
         f.writelines(save_results)
         f.close()
+    last_proc_time = time.time() - last_proc_st
+    total_time = time.time() - start
+    fps = len(image_file_list) / (total_time)
+    print(f"FPS: {fps}, Number: {len(image_file_list)}.")
+    image_num = len(image_file_list)
+    logger.info("read_time = {}, infer_pre_time = {}, infer_det_time = {}, infer_last_proc_time = {}, save_result_time = {}, total_time = {}".format(read_time, infer_p1, infer_p2, infer_p3, last_proc_time, total_time))
+    logger.info("per image cost(ms): read_time: {}, infer_pre_time: {}, infer_det_time: {}, infer_last_proc_time: {}, save_result_time: {}, total_tim: {}".format(read_time *1000 / image_num, infer_p1* 1000 / image_num, infer_p2* 1000 / image_num, infer_p3* 1000 / image_num, last_proc_time * 1000/ image_num,  total_time * 1000 / image_num))
+
     if args.benchmark:
         text_detector.autolog.report()
