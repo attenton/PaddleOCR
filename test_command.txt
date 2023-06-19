@@ -8,7 +8,7 @@ python tools/infer/predict_rec.py --image_dir="../ic15/rec/test/ch4_test_word_im
 db_net:
 python tools/export_model.py -c configs/det/det_r50_vd_db.yml -o Global.pretrained_model=../det_r50_vd_db_v2.0_train/best_accuracy Global.save_inference_dir=./inference/det_dbnet
 
-python tools/infer/predict_det.py --image_dir="../ic15/det/test/ch4_test_images" --det_model_dir="./inference/det_dbnet" --use_tensorrt=True
+python tools/infer/predict_det.py --image_dir="../ic15/det/test/ch4_test_images" --det_algorithm="DB" --det_model_dir="./inference/det_dbnet" --use_tensorrt=True
 
 
 e2e:
@@ -26,14 +26,14 @@ python tools/infer/predict_rec.py --image_dir="../ic15/rec/test/ch4_test_word_im
 east:
 python tools/export_model.py -c configs/det/det_r50_vd_east.yml -o Global.pretrained_model=../det_r50_vd_east_v2.0_train/best_accuracy Global.save_inference_dir=./inference/det_east
 
-python tools/infer/predict_det.py --image_dir="../ic15/det/test/ch4_test_images" --det_model_dir="./inference/det_east" --use_tensorrt=True
+python tools/infer/predict_det.py --image_dir="../ic15/det/test/ch4_test_images" --det_algorithm="EAST" --det_model_dir="./inference/det_east" --use_tensorrt=True
 
 
 
 pse:
 python tools/export_model.py -c configs/det/det_r50_vd_pse.yml -o Global.pretrained_model=../det_r50_vd_pse_v2.0_train/best_accuracy Global.save_inference_dir=./inference/det_pse
 
-python tools/infer/predict_det.py --image_dir="../ic15/det/test/ch4_test_images" --det_model_dir="./inference/det_pse" --use_tensorrt=True
+python tools/infer/predict_det.py --image_dir="../ic15/det/test/ch4_test_images" --det_algorithm="PSE" --det_model_dir="./inference/det_pse" --use_tensorrt=True
 
 
 
