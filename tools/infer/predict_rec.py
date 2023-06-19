@@ -403,6 +403,8 @@ class TextRecognizer(object):
         infer_p1 = 0
         infer_p2 = 0
         infer_p3 = 0
+        copy_time = 0
+        run_time = 0
         for beg_img_no in range(0, img_num, batch_num):
             proc_start_time = time.time()
             end_img_no = min(img_num, beg_img_no + batch_num)
@@ -614,8 +616,13 @@ class TextRecognizer(object):
                                                  input_dict)
                     preds = outputs[0]
                 else:
+                    copy_start_time = time.time()
                     self.input_tensor.copy_from_cpu(norm_img_batch)
+                    copy_end_time = time.time() 
+                    copy_time += copy_start_time
                     self.predictor.run()
+                    run_end_time = time.time() 
+                    run_time += run_end_time - copy_end_time
                     outputs = []
                     for output_tensor in self.output_tensors:
                         output = output_tensor.copy_to_cpu()
@@ -626,6 +633,8 @@ class TextRecognizer(object):
                         preds = outputs
                     else:
                         preds = outputs[0]
+                    output_time = time.time()
+                    copy_time += output_time - run_end_time
             rec_end_time = time.time()
             rec_result = self.postprocess_op(preds)
             for rno in range(len(rec_result)):
@@ -636,7 +645,7 @@ class TextRecognizer(object):
             infer_p1 += pre_proc_end - proc_start_time
             infer_p2 += rec_end_time - pre_proc_end
             infer_p3 += end_time - rec_end_time
-        return rec_res, infer_p1, infer_p2, infer_p3, end_time  - st
+        return rec_res, infer_p1, infer_p2, infer_p3, copy_time, run_time
 
 
 def main(args):
@@ -673,7 +682,7 @@ def main(args):
     read_time = first_point - st
 
     try:
-        rec_res, infer_p1, infer_p2, infer_p3, _ = text_recognizer(img_list)
+        rec_res, infer_p1, infer_p2, infer_p3, copy_time, run_time = text_recognizer(img_list)
     
     
     except Exception as E:
@@ -695,7 +704,8 @@ def main(args):
     print(f"FPS: {fps}, Number: {len(image_file_list)}.")
     image_num = len(image_file_list)
     logger.info("read_time = {}, infer_pre_time = {}, infer_det_time = {}, infer_last_proc_time = {}, save_result_time = {}, total_time = {}".format(read_time, infer_p1, infer_p2, infer_p3, save_res_time, tt_time))
-    logger.info("per image cost(ms): read_time: {}, infer_pre_time: {}, infer_det_time: {}, infer_last_proc_time: {}, save_result_time: {}, total_pre_time: {}".format(read_time *1000 / image_num, infer_p1 * 1000 / image_num, infer_p2 * 1000 / image_num, infer_p3 * 1000 / image_num, save_res_time  * 1000 / image_num, tt_time * 1000 / image_num))
+    logger.info("per image cost(ms): read_time: {}, infer_pre_time: {}, infer_det_time: {}, infer_last_proc_time: {}, save_result_time: {}, copy_time: {}, run_time: {}, total_pre_time: {}".format(read_time *1000 / image_num, infer_p1 * 1000 / image_num, infer_p2 * 1000 / image_num, infer_p3 * 1000 / image_num, save_res_time  * 1000 / image_num, copy_time * 1000 / image_num, 
+    run_time * 1000 / image_num, tt_time * 1000 / image_num))
     if args.benchmark:
         text_recognizer.autolog.report()
 
