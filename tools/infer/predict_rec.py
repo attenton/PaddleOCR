@@ -399,7 +399,12 @@ class TextRecognizer(object):
         st = time.time()
         if self.benchmark:
             self.autolog.times.start()
+
+        infer_p1 = 0
+        infer_p2 = 0
+        infer_p3 = 0
         for beg_img_no in range(0, img_num, batch_num):
+            proc_start_time = time.time()
             end_img_no = min(img_num, beg_img_no + batch_num)
             norm_img_batch = []
             if self.rec_algorithm == "SRN":
@@ -628,7 +633,10 @@ class TextRecognizer(object):
             if self.benchmark:
                 self.autolog.times.end(stamp=True)
             end_time = time.time()
-        return rec_res, pre_proc_end - st, rec_end_time - pre_proc_end, end_time - rec_end_time, end_time  - st
+            infer_p1 += pre_proc_end - proc_start_time
+            infer_p2 += rec_end_time - pre_proc_end
+            infer_p3 += end_time - rec_end_time
+        return rec_res, infer_p1, infer_p2, infer_p3, end_time  - st
 
 
 def main(args):
