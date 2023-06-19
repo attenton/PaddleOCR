@@ -619,7 +619,7 @@ class TextRecognizer(object):
                     copy_start_time = time.time()
                     self.input_tensor.copy_from_cpu(norm_img_batch)
                     copy_end_time = time.time() 
-                    copy_time += copy_start_time
+                    copy_time += copy_end_time - copy_start_time
                     self.predictor.run()
                     run_end_time = time.time() 
                     run_time += run_end_time - copy_end_time
@@ -704,8 +704,7 @@ def main(args):
     print(f"FPS: {fps}, Number: {len(image_file_list)}.")
     image_num = len(image_file_list)
     logger.info("read_time = {}, infer_pre_time = {}, infer_det_time = {}, infer_last_proc_time = {}, save_result_time = {}, total_time = {}".format(read_time, infer_p1, infer_p2, infer_p3, save_res_time, tt_time))
-    logger.info("per image cost(ms): read_time: {}, infer_pre_time: {}, infer_det_time: {}, infer_last_proc_time: {}, save_result_time: {}, copy_time: {}, run_time: {}, total_pre_time: {}".format(read_time *1000 / image_num, infer_p1 * 1000 / image_num, infer_p2 * 1000 / image_num, infer_p3 * 1000 / image_num, save_res_time  * 1000 / image_num, copy_time * 1000 / image_num, 
-    run_time * 1000 / image_num, tt_time * 1000 / image_num))
+    logger.info("per image cost(ms): read_time: {}, infer_pre_time: {}, infer_det_time: {}, infer_last_proc_time: {}, save_result_time: {}, copy_time: {}, run_time: {}, total_pre_time: {}".format(read_time *1000 / image_num, infer_p1 * 1000 / image_num, infer_p2 * 1000 / image_num, infer_p3 * 1000 / image_num, save_res_time  * 1000 / image_num, copy_time * 1000 / image_num, run_time * 1000 / image_num, tt_time * 1000 / image_num))
     if args.benchmark:
         text_recognizer.autolog.report()
 
